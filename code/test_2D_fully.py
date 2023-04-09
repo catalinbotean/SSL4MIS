@@ -38,7 +38,7 @@ def calculate_metric_percase(pred, gt):
 
 
 def test_single_volume(case, net, test_save_path, FLAGS):
-    h5f = h5py.File(FLAGS.root_path + "/data/{}.h5".format(case), 'r')
+    h5f = h5py.File(FLAGS.root_path + "/data/volumes/{}.h5".format(case), 'r')
     image = h5f['image'][:]
     label = h5f['label'][:]
     prediction = np.zeros_like(label)
