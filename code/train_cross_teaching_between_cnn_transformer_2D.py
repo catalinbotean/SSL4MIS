@@ -212,28 +212,37 @@ def train(args, snapshot_path):
     max_epoch = max_iterations // len(trainloader) + 1
     best_performance1 = 0.0
     best_performance2 = 0.0
+    performance1 = 0.0
+    performance2 = 0.0
+    mean_hd951 = 0.0
+    mean_hd952 = 0.0
+    epoch = 0
     #iterator = tqdm(range(max_epoch), ncols=70)
     if config.MODEL.PRETRAIN_CKPT_MODEL1 is not None:
         loaded_model1 = torch.load(config.MODEL.PRETRAIN_CKPT_MODEL1)
-        epoch = loaded_model1["epoch"] + 1
+        epoch = loaded_model1["epoch"]+1
         iter_num = loaded_model1["iter"]
         model1.load_state_dict(loaded_model1["model"])
         optimizer1.load_state_dict(loaded_model1["optimizer"])
         best_performance1 = loaded_model1["best_performance1"]
+        iter_num = (epoch) * 17 
 
     if config.MODEL.PRETRAIN_CKPT_MODEL2 is not None:
         loaded_model2 = torch.load(config.MODEL.PRETRAIN_CKPT_MODEL2)
         model2.load_state_dict(loaded_model2["model"])
         optimizer2.load_state_dict(loaded_model2["optimizer"])
         best_performance2 = loaded_model2["best_performance2"]
-    
-    iterator = tqdm(range(epoch, max_epoch), ncols=70)
+    iterator = tqdm(range(max_epoch), ncols=70)
     for epoch_num in iterator:
-        for _, sampled_batch in enumerate(trainloader):
-
+        skip = False
+        if epoch_num < epoch:
+          skip = True
+        for index_batch, sampled_batch in enumerate(trainloader):
+            #print(sampled_batch['idx'])
+            if skip == True:
+              continue
             volume_batch, label_batch = sampled_batch['image'], sampled_batch['label']
             volume_batch, label_batch = volume_batch.cuda(), label_batch.cuda()
-
             outputs1 = model1(volume_batch)
             outputs_soft1 = torch.softmax(outputs1, dim=1)
 
@@ -241,7 +250,6 @@ def train(args, snapshot_path):
             outputs_soft2 = torch.softmax(outputs2, dim=1)
             consistency_weight = get_current_consistency_weight(
                 iter_num // 150)
-
             loss1 = 0.5 * (ce_loss(outputs1[:args.labeled_bs], label_batch[:args.labeled_bs].long()) + dice_loss(
                 outputs_soft1[:args.labeled_bs], label_batch[:args.labeled_bs].unsqueeze(1)))
             loss2 = 0.5 * (ce_loss(outputs2[:args.labeled_bs], label_batch[:args.labeled_bs].long()) + dice_loss(
@@ -324,11 +332,12 @@ def train(args, snapshot_path):
                                   mean_hd951, iter_num)
 
                 if performance1 > best_performance1:
+                    drive_snapshot_path = "/content/gdrive/MyDrive/attentionunet"
                     best_performance1 = performance1
-                    save_mode_path = os.path.join(snapshot_path,
+                    save_mode_path = os.path.join(drive_snapshot_path,
                                                   'model1_iter_{}_dice_{}.pth'.format(
                                                       iter_num, round(best_performance1, 4)))
-                    save_best = os.path.join(snapshot_path,
+                    save_best = os.path.join(drive_snapshot_path,
                                              '{}_best_model1.pth'.format(args.model))
                     torch.save(model1.state_dict(), save_mode_path)
                     torch.save(model1.state_dict(), save_best)
@@ -360,10 +369,11 @@ def train(args, snapshot_path):
 
                 if performance2 > best_performance2:
                     best_performance2 = performance2
-                    save_mode_path = os.path.join(snapshot_path,
+                    drive_snapshot_path = "/content/gdrive/MyDrive/attentionunet"
+                    save_mode_path = os.path.join(drive_snapshot_path,
                                                   'model2_iter_{}_dice_{}.pth'.format(
                                                       iter_num, round(best_performance2, 4)))
-                    save_best = os.path.join(snapshot_path,
+                    save_best = os.path.join(drive_snapshot_path,
                                              '{}_best_model2.pth'.format(args.model))
                     torch.save(model2.state_dict(), save_mode_path)
                     torch.save(model2.state_dict(), save_best)
@@ -386,12 +396,13 @@ def train(args, snapshot_path):
             if iter_num >= max_iterations:
                 break
             time1 = time.time()
-        drive_snapshot_path = "/content/gdrive/MyDrive/attentionunet"
-        save_mode_path = os.path.join(drive_snapshot_path,
+        if skip == False:
+          drive_snapshot_path = "/content/gdrive/MyDrive/attentionunet"
+          save_mode_path = os.path.join(drive_snapshot_path,
                                       'epochs/model1_epoch_{}_dice_{}.pth'.format(
                                           epoch_num, round(best_performance1, 4)))
 
-        torch.save({
+          torch.save({
                     'model': model1.state_dict(),
                     'optimizer': optimizer1.state_dict(),
                     'epoch': epoch_num,
@@ -401,33 +412,33 @@ def train(args, snapshot_path):
                 }, save_mode_path)
 
     
-        logging.info(
-                    'epoch %d : model1_mean_dice : %f model1_mean_hd95 : %f' % (epoch_num, performance1, mean_hd951))
-        save_mode_path = os.path.join(drive_snapshot_path,
+          #logging.info(
+          #            'epoch %d : model1_mean_dice : %f model1_mean_hd95 : %f' % (epoch_num, performance1, mean_hd951))
+          save_mode_path = os.path.join(drive_snapshot_path,
                                       'epochs/model2_epoch_{}_dice_{}.pth'.format(
                                           epoch_num, round(best_performance2, 4)))
-        torch.save({
+          torch.save({
             'model': model2.state_dict(),
             'optimizer': optimizer2.state_dict(),
             'loss': model2_loss,
             'best_performance2': performance2 if performance2 > best_performance2 else best_performance2
-        }, save_mode_path)
+          }, save_mode_path)
 
-        if performance2 > best_performance2:
-            best_performance2 = performance2
-            save_best = os.path.join(drive_snapshot_path,
+          if performance2 > best_performance2:
+              best_performance2 = performance2
+              save_best = os.path.join(drive_snapshot_path,
                                      '{}_best_model2.pth'.format(args.model))
-            torch.save({
+              torch.save({
                 'model': model2.state_dict(),
                 'optimizer': optimizer2.state_dict(),
                 'loss': model2_loss
-            }, save_best)
+              }, save_best)
 
-        logging.info(
-            'epoch %d : model2_mean_dice : %f model2_mean_hd95 : %f' % (epoch_num, performance2, mean_hd952))
-        
-        for filename in os.listdir(drive_snapshot_path + "/epochs"):
-            if filename.find('_epoch_' + str(epoch_num)) == -1:
+          #logging.info(
+          #    'epoch %d : model2_mean_dice : %f model2_mean_hd95 : %f' % (epoch_num, performance2, mean_hd952))
+
+          for filename in os.listdir(drive_snapshot_path + "/epochs"):
+              if filename.find('_epoch_' + str(epoch_num)) == -1:
                 file_path = os.path.join(drive_snapshot_path + "/epochs", filename)
                 open(file_path, 'w').close()
                 os.remove(file_path)
