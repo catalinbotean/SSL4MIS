@@ -233,14 +233,21 @@ def train(args, snapshot_path):
         optimizer2.load_state_dict(loaded_model2["optimizer"])
         best_performance2 = loaded_model2["best_performance2"]
     iterator = tqdm(range(max_epoch), ncols=70)
+    drive_snapshot_path = "/content/gdrive/MyDrive/attentionunet"
     for epoch_num in iterator:
         skip = False
         if epoch_num < epoch:
           skip = True
-        for index_batch, sampled_batch in enumerate(trainloader):
+        for _, sampled_batch in enumerate(trainloader):
             #print(sampled_batch['idx'])
             if skip == True:
-              continue
+              
+                if iter_num > 0 and iter_num % 200 == 0:
+                    for _, sampled_batch in enumerate(valloader):
+                        continue
+                    for _, sampled_batch in enumerate(valloader):
+                        continue
+                continue
             volume_batch, label_batch = sampled_batch['image'], sampled_batch['label']
             volume_batch, label_batch = volume_batch.cuda(), label_batch.cuda()
             outputs1 = model1(volume_batch)
@@ -312,7 +319,7 @@ def train(args, snapshot_path):
             if iter_num > 0 and iter_num % 200 == 0:
                 model1.eval()
                 metric_list = 0.0
-                for i_batch, sampled_batch in enumerate(valloader):
+                for _, sampled_batch in enumerate(valloader):
                     metric_i = test_single_volume(
                         sampled_batch["image"], sampled_batch["label"], model1, classes=num_classes, patch_size=args.patch_size)
                     metric_list += np.array(metric_i)
@@ -332,7 +339,6 @@ def train(args, snapshot_path):
                                   mean_hd951, iter_num)
 
                 if performance1 > best_performance1:
-                    drive_snapshot_path = "/content/gdrive/MyDrive/attentionunet"
                     best_performance1 = performance1
                     save_mode_path = os.path.join(drive_snapshot_path,
                                                   'model1_iter_{}_dice_{}.pth'.format(
@@ -348,7 +354,7 @@ def train(args, snapshot_path):
 
                 model2.eval()
                 metric_list = 0.0
-                for i_batch, sampled_batch in enumerate(valloader):
+                for _, sampled_batch in enumerate(valloader):
                     metric_i = test_single_volume(
                         sampled_batch["image"], sampled_batch["label"], model2, classes=num_classes, patch_size=args.patch_size)
                     metric_list += np.array(metric_i)
@@ -369,7 +375,6 @@ def train(args, snapshot_path):
 
                 if performance2 > best_performance2:
                     best_performance2 = performance2
-                    drive_snapshot_path = "/content/gdrive/MyDrive/attentionunet"
                     save_mode_path = os.path.join(drive_snapshot_path,
                                                   'model2_iter_{}_dice_{}.pth'.format(
                                                       iter_num, round(best_performance2, 4)))
@@ -384,12 +389,12 @@ def train(args, snapshot_path):
 
             if iter_num % 3000 == 0:
                 save_mode_path = os.path.join(
-                    snapshot_path, 'model1_iter_' + str(iter_num) + '.pth')
+                    drive_snapshot_path, 'model1_iter_' + str(iter_num) + '.pth')
                 torch.save(model1.state_dict(), save_mode_path)
                 logging.info("save model1 to {}".format(save_mode_path))
 
                 save_mode_path = os.path.join(
-                    snapshot_path, 'model2_iter_' + str(iter_num) + '.pth')
+                    drive_snapshot_path, 'model2_iter_' + str(iter_num) + '.pth')
                 torch.save(model2.state_dict(), save_mode_path)
                 logging.info("save model2 to {}".format(save_mode_path))
 
@@ -397,7 +402,6 @@ def train(args, snapshot_path):
                 break
             time1 = time.time()
         if skip == False:
-          drive_snapshot_path = "/content/gdrive/MyDrive/attentionunet"
           save_mode_path = os.path.join(drive_snapshot_path,
                                       'epochs/model1_epoch_{}_dice_{}.pth'.format(
                                           epoch_num, round(best_performance1, 4)))
